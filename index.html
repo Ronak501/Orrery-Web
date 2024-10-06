@@ -22,35 +22,6 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <div id="info" class="hidden">
-    <h2 id="modelName"></h2>
-    <p id="modelInfo"></p>
-    <button id="closeInfo">Close</button>
-  </div>
   <script type="module" src="main.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const canvas = document.getElementById('canvas');
-      const info = document.getElementById('info');
-      const modelName = document.getElementById('modelName');
-      const modelInfo = document.getElementById('modelInfo');
-      const closeInfo = document.getElementById('closeInfo');
-
-      canvas.addEventListener('click', (event) => {
-        // This function should be implemented in main.js to handle model selection
-        if (typeof handleModelClick === 'function') {
-          handleModelClick(event, (name, description) => {
-            modelName.textContent = name;
-            modelInfo.textContent = description;
-            info.classList.remove('hidden');
-          });
-        }
-      });
-
-      closeInfo.addEventListener('mouseup', () => {
-        info.classList.add('hidden');
-      });
-    });
-  </script>
 </body>
 </html>

@@ -117,11 +117,11 @@ scene.add(stars);
 const textureLoader = new THREE.TextureLoader();
 // Moon parameters
 const moonParams = {
-  radius: 1.2,
-  segments: 20,
-  orbitRadius: 20,
-  orbitSpeed: 0.1,
-  rotationSpeed: 0.005,
+  radius: 2.5,
+  segments: 32,
+  orbitRadius: 30,
+  orbitSpeed: 0.05,
+  rotationSpeed: 100    ,
   bumpScale: 0.1,
 };
 
@@ -144,11 +144,19 @@ moonMesh.position.set(moonParams.orbitRadius, 0, 0); // Initial position of the 
 moonMesh.name = "Moon"; // Added name for the model
 scene.add(moonMesh);
 
-// Create a circular line to represent the moon's orbit without the center vertex line
-const orbitGeometry = new THREE.RingGeometry(moonParams.orbitRadius, moonParams.orbitRadius, 64);
-const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5 }); // Increased opacity for better visibility
-const orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
-orbitLine.rotation.x = Math.PI / 2; // Rotate to align with the XY plane
+// Create a dotted line to represent the moon's orbit
+const orbitPoints = [];
+const orbitSegments = 100;
+for (let i = 0; i <= orbitSegments; i++) {
+  const angle = (i / orbitSegments) * Math.PI * 2;
+  const x = Math.cos(angle) * moonParams.orbitRadius;
+  const z = Math.sin(angle) * moonParams.orbitRadius;
+  orbitPoints.push(new THREE.Vector3(x, 0, z));
+}
+
+const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+const orbitMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, opacity: 0.5, transparent: true });
+const orbitLine = new THREE.Points(orbitGeometry, orbitMaterial);
 orbitLine.name = "Moon Orbit Line"; // Added name for the model
 scene.add(orbitLine);
 
@@ -177,115 +185,83 @@ animateMoon();
 
 // Add GUI controls for the moon
 const moonFolder = gui.addFolder("Moon");
-moonFolder.add(moonParams, "radius", 0.5, 2).onChange((value) => {
-  moonMesh.geometry = new THREE.SphereGeometry(
-    value,
-    moonParams.segments,
-    moonParams.segments
-  );
-});
-moonFolder.add(moonParams, "segments", 10, 50, 1).onChange((value) => {
+moonFolder.add(moonParams, "segments", 16, 64, 1).onChange((value) => {
   moonMesh.geometry = new THREE.SphereGeometry(moonParams.radius, value, value);
 });
-moonFolder.add(moonParams, "orbitRadius", 10, 30);
-moonFolder.add(moonParams, "orbitSpeed", 0.01, 0.5);
-moonFolder.add(moonParams, "rotationSpeed", 0.001, 0.01);
+moonFolder.add(moonParams, "orbitRadius", 20, 50).onChange((value) => {
+  const newOrbitPoints = orbitPoints.map(point => point.normalize().multiplyScalar(value));
+  orbitGeometry.setFromPoints(newOrbitPoints);
+});
+moonFolder.add(moonParams, "orbitSpeed", 0.01, 0.1);
+moonFolder.add(moonParams, "rotationSpeed", 0.001, 0.02);
 moonFolder.add(moonParams, "bumpScale", 0, 0.5).onChange((value) => {
   moonMaterial.bumpScale = value;
 });
+moonFolder.add(orbitMaterial, "size", 0.1, 1).name("Orbit Dot Size");
+moonFolder.add(orbitMaterial, "opacity", 0.1, 1).name("Orbit Opacity");
 
-const loader = new GLTFLoader();
-
-// Load the 3D model and add a circular orbit line
-let satellite;
-loader.load("./source/satellite.glb", (gltf) => {
-  satellite = gltf.scene;
-  satellite.name = "Communications Satellite"; // Added name for the model
-  satellite.scale.set(
-    satelliteParams.scale,
-    satelliteParams.scale,
-    satelliteParams.scale
-    );
-    satellite.position.set(0, 0, 0); // Set initial position to the origin
-    satellite.rotation.set(0, 0, 0); // Set initial rotation to the origin
-    satellite.lookAt(0, 0, 0); // Make the satellite always face the Earth
-  scene.add(satellite);
-
-  // Create a circular orbit line for the satellite with GUI control for inclination and color
-  const orbitPath = new THREE.TorusGeometry(satelliteParams.radius, 0.05, 16, 100);
-  const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }); // Increased opacity for better visibility
-  const orbitMesh = new THREE.Mesh(orbitPath, orbitMaterial);
-  orbitMesh.rotation.x = Math.PI / 2; // Initially align with the XY plane
-  orbitMesh.name = "Satellite Orbit"; // Added name for the model
-  scene.add(orbitMesh);
-
-  // Add GUI controls for the satellite and its orbit
-  const satelliteFolder = gui.addFolder("Satellite");
-  satelliteFolder
-    .add(satelliteParams, "scale", 0.001, 0.1)
-    .onChange((value) => {
-      satellite.scale.set(value, value, value);
-    });
-  satelliteFolder.add(satelliteParams, "radius", 5, 20).onChange((value) => {
-    orbitMesh.geometry.dispose(); // Dispose old geometry
-    orbitMesh.geometry = new THREE.TorusGeometry(value, 0.05, 16, 100); // Update the orbit geometry
-  });
-  satelliteFolder.add(satelliteParams, "orbitSpeed", 0.1, 2);
-  satelliteFolder.add(satelliteParams, "verticalAmplitude", 0, 1);
-  satelliteFolder
-    .add(orbitMesh.rotation, "x", -Math.PI, Math.PI, Math.PI / 180)
-    .name("Orbit Inclination X")
-    .onChange((value) => {
-      orbitMesh.rotation.x = value;
-    });
-  satelliteFolder
-    .add(orbitMesh.rotation, "y", -Math.PI, Math.PI, Math.PI / 180)
-    .name("Orbit Inclination Y")
-    .onChange((value) => {
-      orbitMesh.rotation.y = value;
-    });
-  satelliteFolder
-    .addColor(orbitMaterial, "color")
-    .name("Orbit Color")
-    .onChange((value) => {
-      orbitMaterial.color.set(value);
-    });
-  satelliteFolder
-    .add(orbitMaterial, "opacity", 0.1, 1)
-    .name("Orbit Opacity")
-    .onChange((value) => {
-      orbitMaterial.opacity = value;
-    });
-  satelliteFolder.open();
-
-  // Start animating the satellite once it's loaded
-  animateSatellite();
-});
-// GUI controls for the moon's orbit visualization with enhanced 3D and line intensity options
+// GUI controls for the moon's orbit visualization
 const orbitFolder = gui.addFolder("Moon Orbit");
 orbitFolder.addColor(orbitMaterial, "color").name("Orbit Color");
 orbitFolder.add(orbitMaterial, "opacity", 0, 1).name("Orbit Opacity").onChange(value => {
   orbitMaterial.opacity = value;
 });
-orbitFolder.add(orbitGeometry.parameters, "thetaSegments", 3, 128, 1).name("Orbit Segments").onChange(value => {
-  const newGeometry = new THREE.TorusGeometry(moonParams.orbitRadius, 0.1, 16, value); // Changed to TorusGeometry for 3D effect
-  orbitLine.geometry.dispose(); // Dispose old geometry
-  orbitLine.geometry = newGeometry;
-});
-orbitFolder.add(moonParams, "orbitRadius", 10, 30).name("Orbit Radius").onChange(value => {
-  const newGeometry = new THREE.TorusGeometry(value, 0.1, 16, orbitGeometry.parameters.thetaSegments); // Changed to TorusGeometry for 3D effect
-  orbitLine.geometry.dispose(); // Dispose old geometry
+orbitFolder.add(moonParams, "orbitRadius", 20, 50).name("Orbit Radius").onChange(value => {
+  const newGeometry = new THREE.TorusGeometry(value, 0.1, 16, 100);
+  orbitLine.geometry.dispose();
   orbitLine.geometry = newGeometry;
 });
 orbitFolder.open();
 
-// Satellite parameters
+// Load the 3D model and add a circular orbit line
+let satellite;
 const satelliteParams = {
-  scale: 0.01,
-  radius: 8,
-  orbitSpeed: 0.5,
+  scale: 0.02,
+  radius: 15,
+  orbitSpeed: 0.3,
   verticalAmplitude: 0.5,
 };
+
+const loader = new GLTFLoader();
+loader.load("./source/satellite.glb", (gltf) => {
+  satellite = gltf.scene;
+  satellite.name = "Communications Satellite";
+  satellite.scale.set(satelliteParams.scale, satelliteParams.scale, satelliteParams.scale);
+  satellite.position.set(satelliteParams.radius, 0, 0);
+  satellite.rotation.set(0, 0, 0);
+  satellite.lookAt(0, 0, 0);
+  scene.add(satellite);
+
+  // Create a circular orbit line for the satellite
+  const orbitPath = new THREE.RingGeometry(satelliteParams.radius, satelliteParams.radius + 0.05, 64);
+  const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+  const orbitMesh = new THREE.Mesh(orbitPath, orbitMaterial);
+  orbitMesh.rotation.x = Math.PI / 2; // Align with the XZ plane for horizontal rotation
+  orbitMesh.name = "Satellite Orbit";
+  scene.add(orbitMesh);
+
+  // Add GUI controls for the satellite and its orbit
+  const satelliteFolder = gui.addFolder("Satellite");
+  satelliteFolder.add(satelliteParams, "scale", 0.01, 0.1).onChange((value) => {
+    satellite.scale.set(value, value, value);
+  });
+  satelliteFolder.add(satelliteParams, "radius", 10, 25).onChange((value) => {
+    orbitMesh.geometry.dispose();
+    orbitMesh.geometry = new THREE.RingGeometry(value, value + 0.05, 64);
+    satellite.position.set(value, 0, 0);
+  });
+  satelliteFolder.add(satelliteParams, "orbitSpeed", 0.1, 1);
+  satelliteFolder.addColor(orbitMaterial, "color").name("Orbit Color").onChange((value) => {
+    orbitMaterial.color.set(value);
+  });
+  satelliteFolder.add(orbitMaterial, "opacity", 0.1, 1).name("Orbit Opacity").onChange((value) => {
+    orbitMaterial.opacity = value;
+  });
+  satelliteFolder.open();
+
+  // Start animating the satellite once it's loaded
+  animateSatellite();
+});
 
 // Function to animate the satellite
 function animateSatellite() {
@@ -298,21 +274,17 @@ function animateSatellite() {
     // Update satellite's position (orbit around Earth)
     satellite.position.x = Math.cos(time * orbitSpeed) * radius;
     satellite.position.z = Math.sin(time * orbitSpeed) * radius;
-    satellite.position.y =
-      Math.sin(time * orbitSpeed * 0.5) * radius * verticalAmplitude;
+    satellite.position.y = Math.sin(time * orbitSpeed * 0.5) * radius * verticalAmplitude;
 
     // Make the satellite always face the direction it's moving
-    satellite.lookAt(
-      satellite.position
-        .clone()
-        .add(
-          new THREE.Vector3(
-            -Math.sin(time * orbitSpeed),
-            Math.cos(time * orbitSpeed * 0.5) * verticalAmplitude,
-            Math.cos(time * orbitSpeed)
-          )
-        )
+    const lookAtPoint = satellite.position.clone().add(
+      new THREE.Vector3(
+        -Math.sin(time * orbitSpeed),
+        Math.cos(time * orbitSpeed * 0.5) * verticalAmplitude,
+        Math.cos(time * orbitSpeed)
+      )
     );
+    satellite.lookAt(lookAtPoint);
   }
   // Request the next animation frame
   requestAnimationFrame(animateSatellite);
@@ -377,27 +349,139 @@ scene.add(pointLight);
 
 // Position camera
 camera.position.z = 5;
-
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
-    controls.update();
-    moonMesh.rotation.y += 100 * 0.005;
-  renderer.render(scene, camera);
-}
-animate();
-
 // Add controls for stars
 const starFolder = gui.addFolder("Stars");
 starFolder.add(starMaterial, "size", 0.1, 3);
 starFolder.addColor(starMaterial, "color");
 
-// Function to update GUI
-function updateGUI() {
-  for (const controller of gui.controllers) {
-    controller.updateDisplay();
+loader.load(
+    './source/Sun.glb',
+    (gltf) => {
+        const model = gltf.scene;
+        
+        // Set the sun at the center of the scene
+        model.position.set(-200, 0, 40);
+        
+        // Set a small scale for the sun
+        const initialScale = 0.06;
+        model.scale.set(initialScale, initialScale, initialScale);
+        
+        scene.add(model);
+
+        // Add a point light to represent the sun's light
+        const sunLight = new THREE.PointLight(0xffffff, 2, 1000);
+        sunLight.position.copy(model.position);
+        scene.add(sunLight);
+
+        // Create a circular line around the sun
+        const sunRadius = 10; // Adjust this value to change the size of the circle
+        const sunCircleGeometry = new THREE.CircleGeometry(sunRadius, 64);
+        const sunCircleMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.5 });
+        const sunCircle = new THREE.LineLoop(sunCircleGeometry, sunCircleMaterial);
+        sunCircle.rotation.x = Math.PI / 2; // Rotate to align with the XZ plane
+        sunCircle.position.copy(model.position); // Position the circle at the sun's position
+        scene.add(sunCircle);
+    }
+);
+
+loader.load("./source/Mars.glb", (gltf) => {
+  const model = gltf.scene;
+
+  // Set a fixed initial position for Mars
+  const initialPosition = { x: 100, y: 0, z: 41};
+  model.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+
+  // Set an initial scale for Mars
+  const initialScale = 0.01;
+  model.scale.set(initialScale, initialScale, initialScale);
+
+  scene.add(model);
+
+  // Add a reddish ambient light to represent Mars' atmosphere
+  const marsLight = new THREE.AmbientLight(0xff6347, 0.5);
+  scene.add(marsLight);
+
+  // Add rotation controls
+  const rotationSpeed = { value: 0.005 };
+  modelFolder.add(rotationSpeed, "value", 0, 0.02).name("Rotation Speed");
+
+  // Animate Mars rotation
+  function animateMars() {
+    model.rotation.y += rotationSpeed.value;
+    requestAnimationFrame(animateMars);
   }
+  animateMars();
+});
+
+loader.load("./source/Mercury.glb", (gltf) => {
+  const model = gltf.scene;
+
+  // Set a fixed initial position for Mercury
+  const initialPosition = { x: -120, y: 0, z: 0 };
+  model.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+
+  // Set an initial scale for Mercury
+  const initialScale = 0.009;
+  model.scale.set(initialScale, initialScale, initialScale);
+
+  scene.add(model);
+
+  // Add a subtle ambient light to represent Mercury's lack of atmosphere
+  const mercuryLight = new THREE.AmbientLight(0xcccccc, 0.2);
+  scene.add(mercuryLight);
+  // Add rotation controls
+  const rotationSpeed = { value: 0.0029 };
+  modelFolder.add(rotationSpeed, "value", 0, 0.01).name("Rotation Speed");
+
+  // Animate Mercury rotation
+  function animateMercury() {
+    model.rotation.y += rotationSpeed.value;
+    requestAnimationFrame(animateMercury);
+  }
+  animateMercury();
+});
+
+
+loader.load("./source/Venus.glb", (gltf) => {
+  const model = gltf.scene;
+
+  // Set a fixed initial position for Mercury
+  const initialPosition = { x: -60, y: 0, z: 0 };
+  model.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+
+  // Set an initial scale for Mercury
+  const initialScale = 0.009;
+  model.scale.set(initialScale, initialScale, initialScale);
+
+  scene.add(model);
+
+  // Add a subtle ambient light to represent Venus's thick atmosphere
+  const venusLight = new THREE.AmbientLight(0xffcc99, 0.4);
+  scene.add(venusLight);
+
+  // Add rotation controls
+  const rotationSpeed = { value: 0.0007 };
+  modelFolder.add(rotationSpeed, "value", 0, 0.01).name("Rotation Speed");
+
+  // Animate Venus rotation
+  function animateVenus() {
+    model.rotation.y += rotationSpeed.value;
+    requestAnimationFrame(animateVenus);
+  }
+  animateVenus();
+});
+
+// Update animation function
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
 }
+animate(); 
+
+// Update camera position
+camera.position.set(0, 50, 100);
+camera.lookAt(scene.position);
 
 // Handle window resize
 window.addEventListener("resize", () => {
